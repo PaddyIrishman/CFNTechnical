@@ -1,0 +1,558 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Tech Challenge
+Parameters:
+  MyName:
+    Type: String
+    Description: Name of the Candidate
+  MyEmail:
+    Type: String
+    Description: Enter your email for Dynamo Updates
+Resources:
+  DynamoTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+      TableName: !Sub 'Challenge_${MyName}'
+      AttributeDefinitions:
+        - AttributeName: team
+          AttributeType: S
+      KeySchema:
+        - AttributeName: team
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 7b3dc95c-7c66-43ab-b736-504e8c7aada2
+  LambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        ZipFile: !Sub >
+          import json
+
+          import boto3
+
+
+          def dynamo_itemcreate(team_name, team_country, team_desc,
+          team_rating):
+              dynamodb = boto3.client('dynamodb')
+              db_name = "Challenge_${MyName}"
+              dynamodb.put_item(TableName=db_name, Item={'country':{'S':team_country}, 'team':{'S':team_name}, 'desc':{'S':team_desc}, 'rating':{'S':team_rating}})
+
+          def lambda_handler(event, context):
+              print('The Team Country: %s' % event['team_country'])
+              print('The Team Name: %s' % event['team_name'])
+              print('Team Description: %s' % event['team_desc'])
+              print('Team Rating: %s' % event['team_rating'])
+              dynamo_itemcreate(event['team_name'], event['team_country'], event['team_desc'],event['team_rating'])
+      Description: API Gateway TechChallenge
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt 
+        - LambdaExecutionRole
+        - Arn
+      Runtime: python3.7
+      Timeout: 5
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: a7818df9-554a-459c-845d-043376b51f72
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:PutItem'
+                Resource: !GetAtt 
+                  - DynamoTable
+                  - Arn
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 484b184e-2b72-4314-aa99-a41adc94dfc9
+  LambdaStreamSNSExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'sns:Publish'
+                Resource: !Ref DynamoSNS
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:DescribeStream'
+                  - 'dynamodb:GetRecords'
+                  - 'dynamodb:GetShardIterator'
+                  - 'dynamodb:ListStreams'
+                Resource: '*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 62e23ab6-8e39-451e-af9e-91d795b9a624
+  APIPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:invokeFunction'
+      FunctionName: !GetAtt 
+        - LambdaFunction
+        - Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Join 
+        - ''
+        - - 'arn:aws:execute-api:'
+          - !Ref 'AWS::Region'
+          - ':'
+          - !Ref 'AWS::AccountId'
+          - ':'
+          - !Ref ApiRestApi
+          - /*
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 7ebdcf68-e9cc-464e-9fbb-a4fe361b5b18
+  ApiRestApi:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: !Sub 'RestTechChallenge1_${MyName}'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+  ApiResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !GetAtt 
+        - ApiRestApi
+        - RootResourceId
+      RestApiId: !Ref ApiRestApi
+      PathPart: add_new
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 077fdaea-3006-4be3-b182-9ee1c1855632
+  ApiMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref ApiRestApi
+      ResourceId: !Ref ApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Join 
+          - ''
+          - - 'arn:aws:apigateway:'
+            - !Ref 'AWS::Region'
+            - ':lambda:path/2015-03-31/functions/'
+            - !GetAtt 
+              - LambdaFunction
+              - Arn
+            - /invocations
+        IntegrationResponses:
+          - ResponseTemplates:
+              application/json: '{}'
+            ResponseParameters:
+              method.response.header.Location: integration.response.body.headers.uid
+            StatusCode: 201
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json: >-
+            { "team_name": $input.json('team_name'), "team_country":
+            $input.json('team_country'), "team_desc": $input.json('team_desc'),
+            "team_rating": $input.json('team_rating')}
+      RequestModels:
+        application/json: !Ref ApiModel
+      MethodResponses:
+        - ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Location: true
+          StatusCode: 201
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 3658fa8d-adaa-401a-89c6-d9dd8078ab51
+  ApiModel:
+    Type: 'AWS::ApiGateway::Model'
+    Properties:
+      ContentType: application/json
+      Name: Team
+      RestApiId: !Ref ApiRestApi
+      Schema:
+        title: Team
+        type: object
+        properties:
+          team_country:
+            type: string
+          team_name:
+            type: string
+          team_desc:
+            type: string
+          team_rating:
+            type: string
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: b48d4e60-16f2-4ca2-83c9-b68a2d037472
+  ApiDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    Properties:
+      RestApiId: !Ref ApiRestApi
+      StageName: v1
+    DependsOn:
+      - ApiMethod
+      - ApiModel
+      - ApiRestApi
+      - APIPermission
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 34275677-54f6-4b27-9ab0-f5fff46addac
+  DynamoSNS:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      DisplayName: DynamoStreamTopic
+      TopicName: DynamoStreamTopic
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: d242030f-bba1-4193-b220-bed59e210f9b
+  StreamTriggeredLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import boto3
+          import os
+
+          TOPIC_ARN = os.environ['TOPIC_ARN']
+          sns = boto3.client('sns')
+          def sns_publish(stream_item):
+              response = sns.publish(TopicArn=TOPIC_ARN,Message= stream_item,)
+          def lambda_handler(event, context):
+              print(event)
+              sns_publish(str(event))
+      Description: 'Hire me:)'
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          TOPIC_ARN: !Ref DynamoSNS
+      MemorySize: 128
+      Role: !GetAtt 
+        - LambdaStreamSNSExecutionRole
+        - Arn
+      Runtime: python3.7
+      Timeout: 5
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 928e25a0-0189-4c3e-a355-36e670436ea3
+  DynamoStreamLambdaSource:
+    Type: 'AWS::Lambda::EventSourceMapping'
+    Properties:
+      BatchSize: 1
+      Enabled: true
+      EventSourceArn: !GetAtt 
+        - DynamoTable
+        - StreamArn
+      FunctionName: !GetAtt 
+        - StreamTriggeredLambdaFunction
+        - Arn
+      StartingPosition: LATEST
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 3a3ca66f-f629-4224-ba3c-8da2998b2fce
+  SNSSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      Endpoint: !Ref MyEmail
+      Protocol: email
+      TopicArn: !Ref DynamoSNS
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 99b7fd02-2df6-4c00-b38f-ec2da8dc45b6
+Outputs:
+  RootUrl:
+    Description: Root URL of the API gateway
+    Value: !Join 
+      - ''
+      - - 'https://'
+        - !Ref ApiRestApi
+        - .execute-api.
+        - !Ref 'AWS::Region'
+        - .amazonaws.com/
+Metadata:
+  'AWS::CloudFormation::Designer':
+    29a2501c-9aa4-4d70-b6fc-4ad11dadd586:
+      size:
+        width: 510
+        height: 420
+      position:
+        x: 30
+        'y': 70
+      z: 1
+      embeds:
+        - b48d4e60-16f2-4ca2-83c9-b68a2d037472
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 34275677-54f6-4b27-9ab0-f5fff46addac
+    b48d4e60-16f2-4ca2-83c9-b68a2d037472:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 360
+        'y': 130
+      z: 2
+      parent: 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+      embeds: []
+      iscontainedinside:
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+    077fdaea-3006-4be3-b182-9ee1c1855632:
+      size:
+        width: 240
+        height: 240
+      position:
+        x: 60
+        'y': 130
+      z: 2
+      parent: 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+      embeds:
+        - 3658fa8d-adaa-401a-89c6-d9dd8078ab51
+      iscontainedinside:
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+    484b184e-2b72-4314-aa99-a41adc94dfc9:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 640
+        'y': 420
+      z: 1
+      embeds: []
+    a7818df9-554a-459c-845d-043376b51f72:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 210
+        'y': 570
+      z: 1
+      embeds: []
+    3658fa8d-adaa-401a-89c6-d9dd8078ab51:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 110
+        'y': 180
+      z: 3
+      parent: 077fdaea-3006-4be3-b182-9ee1c1855632
+      embeds: []
+      isassociatedwith:
+        - b48d4e60-16f2-4ca2-83c9-b68a2d037472
+      iscontainedinside:
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+        - 077fdaea-3006-4be3-b182-9ee1c1855632
+    7ebdcf68-e9cc-464e-9fbb-a4fe361b5b18:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 300
+        'y': 570
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - a7818df9-554a-459c-845d-043376b51f72
+    34275677-54f6-4b27-9ab0-f5fff46addac:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 360
+        'y': 250
+      z: 2
+      parent: 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+      embeds: []
+      dependson:
+        - 3658fa8d-adaa-401a-89c6-d9dd8078ab51
+        - b48d4e60-16f2-4ca2-83c9-b68a2d037472
+        - 29a2501c-9aa4-4d70-b6fc-4ad11dadd586
+        - 7ebdcf68-e9cc-464e-9fbb-a4fe361b5b18
+    7b3dc95c-7c66-43ab-b736-504e8c7aada2:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 420
+        'y': 570
+      z: 1
+      embeds: []
+    d242030f-bba1-4193-b220-bed59e210f9b:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 510
+        'y': 570
+      z: 1
+      embeds: []
+    62e23ab6-8e39-451e-af9e-91d795b9a624:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 50
+        'y': 530
+      z: 1
+      embeds: []
+    928e25a0-0189-4c3e-a355-36e670436ea3:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: -20
+        'y': 430
+      z: 1
+      embeds: []
+    3a3ca66f-f629-4224-ba3c-8da2998b2fce:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: -100
+        'y': 570
+      z: 0
+      embeds: []
+      isassociatedwith:
+        - 928e25a0-0189-4c3e-a355-36e670436ea3
+    99b7fd02-2df6-4c00-b38f-ec2da8dc45b6:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 600
+        'y': 560
+      z: 0
+      embeds: []
+      isassociatedwith:
+        - d242030f-bba1-4193-b220-bed59e210f9b
