@@ -14,5 +14,6 @@ The main improvements centre around the prinicples of least privilege as well as
 Ideally, this template would have an Authenticated API either using a Lambda, Cognito or IAM Authorizer[1]. For certainty (as certain as one can be when it comes to exploitation) that common exploits are mitigated against the API could be deployed behind a WAF[2]. This would both defend in earnest against any would be attacker and minimize the avenues of attack available should the perimiter be breached. 
 
 I look forward to speaking with you. 
+
 [1] Authentication for API Gateway https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-control-access-to-api.html
 [2] WAF https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-control-access-aws-waf.html
