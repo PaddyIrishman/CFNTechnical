@@ -11,7 +11,7 @@ To run this template and interact with the resulting resources requires the foll
 Improvements: 
 The main improvements centre around the prinicples of least privilege as well as defence in depth. All layers of the deployed architecture shoud be protected against potential compromise. Should comprimise take place, the blast radius should be minimized as much as is possible. With that in mind I believe I have upgraded this template. This was done by restricting resources to invoking and consuming only the services needed and no more. Whether that be dictating the stream which should be used as an event trigger for Lambda or limiting the CRUD operations available to a given Lambda execution against DynamoDB or any data store for that matter. 
 
-Ideally, this template would have an Authenticated API either using a Lambda, Cognito or IAM Authorizer[1]. For certainty (as certain as one can be when it comes to exploitation) that common exploits are mitigated against the API could be deployed behind a WAF[2]. This would both defend in earnest against any would be attacker and minimize the avenues of attack available should the perimiter be breached. 
+Ideally, this template would have an Authenticated API either using a Lambda, Cognito or IAM Authorizer[1]. For relative certainty that common exploits are mitigated against, the API could be deployed behind a WAF[2]. This would both defend in earnest against any would be attacker and minimize the avenues of attack available should the perimiter be breached. 
 
 I look forward to speaking with you. 
 
