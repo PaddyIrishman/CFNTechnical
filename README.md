@@ -13,7 +13,7 @@ $ curl -X POST \
   https://<api-id>.execute-api.<aws-region>.amazonaws.com/v1/add_new \
   -H 'Content-Type: application/json' \
   -H 'cache-control: no-cache' \
-  -d '{"team_rating":"100","team_country":"Ireland","team_desc":"better at rugby then Aus","team_name":"Ireland"}'
+  -d '{"team_rating":"1","team_country":"Ireland","team_desc":"better at rugby then Aus","team_name":"Ireland"}'
 
 Improvements: 
 The main improvements centre around the prinicples of least privilege as well as defence in depth. All layers of the deployed architecture shoud be protected against potential compromise. Should comprimise take place, the blast radius should be minimized as much as is possible. With that in mind I believe I have upgraded this template. This was done by restricting resources to invoking and consuming only the services needed and no more. Whether that be explicitly dictating the stream which should be used as an event trigger for Lambda or by limiting the CRUD operations available to a given Lambda execution against DynamoDB or any data store for that matter. 
