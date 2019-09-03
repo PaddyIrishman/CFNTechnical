@@ -6,7 +6,7 @@ To run this template and interact with the resulting resources requires the foll
 * Name your stack
 * Supply a name without the presence of whitespace or special chars. 
 * Supply your email and accept the topic subscription sent to the address you provide. 
-* You can then test the Api by posting to the endpoint within the output of your CFN deployment, adhering to the model schema which can be found in API Gateway. Please note that only new PUTS will register in the stream, thus invoking SNS. 
+* You can then test the Api by posting to the endpoint returned within the output of your CFN deployment, adhering to the model schema which can be found in API Gateway. Please note that only new PUTS will register in the stream, thus invoking SNS. 
 
 Example: 
 $ curl -X POST \\ 
