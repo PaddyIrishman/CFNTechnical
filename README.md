@@ -10,9 +10,13 @@ To run this template and interact with the resulting resources requires the foll
 
 Example: 
 $ curl -X POST \\ 
+  
   https://<api-id>.execute-api.<aws-region>.amazonaws.com/v1/add_new \\ 
+  
   -H 'Content-Type: application/json' \\ 
+  
   -H 'cache-control: no-cache' \\ 
+  
   -d '{"team_rating":"1","team_country":"Ireland","team_desc":"better at rugby then Aus","team_name":"Ireland"}'
 
 Improvements: 
