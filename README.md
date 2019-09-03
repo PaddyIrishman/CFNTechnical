@@ -9,10 +9,10 @@ To run this template and interact with the resulting resources requires the foll
 * You can then test the Api by posting to the endpoint within the output of your CFN deployment, adhering to the model schema which can be found in API Gateway. Please note that only new PUTS will register in the stream, thus invoking SNS. 
 
 Example: 
-$ curl -X POST \\
-  https://<api-id>.execute-api.<aws-region>.amazonaws.com/v1/add_new \\
-  -H 'Content-Type: application/json' \\
-  -H 'cache-control: no-cache' \\
+$ curl -X POST \\ 
+  https://<api-id>.execute-api.<aws-region>.amazonaws.com/v1/add_new \\ 
+  -H 'Content-Type: application/json' \\ 
+  -H 'cache-control: no-cache' \\ 
   -d '{"team_rating":"1","team_country":"Ireland","team_desc":"better at rugby then Aus","team_name":"Ireland"}'
 
 Improvements: 
