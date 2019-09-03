@@ -249,7 +249,6 @@ Resources:
       Code:
         ZipFile: |
           import boto3
-          import boto3
           import os
 
           TOPIC_ARN = os.environ['TOPIC_ARN']
@@ -257,7 +256,6 @@ Resources:
           def sns_publish(stream_item):
               response = sns.publish(TopicArn=TOPIC_ARN,Message= stream_item,)
           def lambda_handler(event, context):
-              print(event)
               sns_publish(str(event))
       Description: 'Hire me:)'
       Handler: index.lambda_handler
