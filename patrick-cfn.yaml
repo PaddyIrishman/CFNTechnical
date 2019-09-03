@@ -6,7 +6,7 @@ Parameters:
     Description: Name of the Candidate
   MyEmail:
     Type: String
-    Description: Enter your email for Dynamo Updates
+    Description: Enter your email address for Dynamo Updates
 Resources:
   DynamoTable:
     Type: 'AWS::DynamoDB::Table'
